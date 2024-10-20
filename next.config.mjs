@@ -1,10 +1,23 @@
-// next.config.mjs
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
-    swcMinify: true,
-    // Add any other necessary configurations
-};
+    async rewrites() {
+      return [
+        {
+          source: '/sign-in',
+          destination: '/sign-in',
+        },
+        {
+          source: '/sign-up',
+          destination: '/sign-up',
+        },
+        {
+          source: '/sso-callback',
+          destination: '/sso-callback',
+        },
+      ];
+    },
+  }
+
 
 export default nextConfig;

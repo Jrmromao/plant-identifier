@@ -1,4 +1,4 @@
-// src/app/components/CameraCapture.tsx
+''
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 
 interface CameraCaptureProps {
@@ -7,7 +7,7 @@ interface CameraCaptureProps {
 
 const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
@@ -16,38 +16,45 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
     setError(null);
     setDebugInfo('Attempting to start camera...');
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
       });
-      setStream(mediaStream);
-      setIsCapturing(true);
-      setDebugInfo('Camera stream obtained successfully.');
+      streamRef.current = stream;
+      setDebugInfo('Camera stream obtained. Attaching to video element...');
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          setDebugInfo('Video element loaded metadata. Playing...');
+          videoRef.current?.play().catch(e => {
+            setDebugInfo(`Error playing video: ${e}`);
+          });
+        };
+        setIsCapturing(true);
+      } else {
+        setDebugInfo('Video ref is null! Retrying in 1 second...');
+        setTimeout(startCapture, 1000);
+      }
     } catch (err) {
       console.error("Error accessing camera:", err);
       setError(`Unable to access the camera: ${err}`);
-      setDebugInfo(`Error: ${err}`);
+      setIsCapturing(false);
     }
   }, []);
 
-  useEffect(() => {
-    if (isCapturing && videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(e => {
-        setDebugInfo(`Error playing video: ${e}`);
-      });
-    }
-  }, [isCapturing, stream]);
-
   const stopCapture = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+    setDebugInfo('Stopping capture...');
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
     }
-    setStream(null);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setIsCapturing(false);
-    setDebugInfo('Camera stopped');
-  }, [stream]);
+  }, []);
 
   const capturePhoto = useCallback(() => {
+    setDebugInfo('Capturing photo...');
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth;
@@ -68,11 +75,9 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
 
   useEffect(() => {
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
+      stopCapture();
     };
-  }, [stream]);
+  }, [stopCapture]);
 
   return (
     <div className="relative">
@@ -109,7 +114,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
         </div>
       )}
       {error && <p className="mt-2 text-red-500 text-sm">{error}</p>}
-      <p className="mt-2 text-blue-500 text-sm">Debug: {debugInfo}</p>
+     {process.env.isDev && <p className="mt-2 text-blue-500 text-sm">Debug: {debugInfo}</p>}
     </div>
   );
 };
